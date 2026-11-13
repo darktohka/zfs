@@ -768,11 +768,10 @@ zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 		z = zstd_dctx_fallback.mem;
 		type = ZSTD_KMEM_DCTX;
 		ZSTDSTAT_BUMP(zstd_stat_alloc_fallback);
-	}
-
-	/* Allocation should always be successful */
-	if (!z) {
-		return (NULL);
+		if (!z) {
+			mutex_exit(&zstd_dctx_fallback.barrier);
+			return (NULL);
+		}
 	}
 
 	z->kmem_type = type;
@@ -787,9 +786,13 @@ zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 static void
 zstd_free(void *opaque __maybe_unused, void *ptr)
 {
-	struct zstd_kmem *z =
-	    (struct zstd_kmem *)((char *)ptr - sizeof (struct zstd_kmem));
+	struct zstd_kmem *z;
 	enum zstd_kmem_type type;
+
+	if (ptr == NULL)
+		return;
+
+	z = (struct zstd_kmem *)((char *)ptr - sizeof (struct zstd_kmem));
 
 	ASSERT3U(z->kmem_type, <, ZSTD_KMEM_COUNT);
 	ASSERT3U(z->kmem_type, >, ZSTD_KMEM_UNKNOWN);
