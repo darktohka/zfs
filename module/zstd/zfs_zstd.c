@@ -746,7 +746,14 @@ zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 
 	z = (struct zstd_kmem *)zstd_mempool_alloc(zstd_mempool_dctx, nbytes);
 	if (z) {
-		type = ZSTD_KMEM_POOL;
+		/*
+		 * zstd_mempool_alloc() also hands out a one-off vmem_alloc()
+		 * buffer (ZSTD_KMEM_DEFAULT, pool == NULL) when the pool is
+		 * exhausted.  Preserve the type it recorded; assuming every
+		 * non-NULL return is pooled makes zstd_free() call
+		 * mutex_exit() on a NULL z->pool.
+		 */
+		type = z->kmem_type;
 	} else {
 		/* Try harder, decompression shall not fail */
 		z = vmem_alloc(nbytes, KM_SLEEP);
